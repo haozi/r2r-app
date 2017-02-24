@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Hello World!</title>
+  </head>
+  <body>
+    <script>
+      const hostname = '127.0.0.1'
+      const debugPort = 8315
+
+      require('./renderer.js')
+      const CDP = require('chrome-remote-interface')
+      CDP({
+        host: hostname,
+        port: debugPort
+      }, (client) => {
+        // extract domains
+        const {Network, Page} = client
+        // setup handlers
+        Network.requestWillBeSent((params) => {
+          console.log(params.request.url)
+        })
+        Page.loadEventFired(() => {
+          client.close()
+        })
+        // enable events then start!
+        Promise.all([
+          Network.enable(),
+          Page.enable(),
+          fetch(`http://${hostname}:${debugPort}/json`)
+          .then(res => res.json())
+          .then(d => d.filter(i => i.type === 'page')[0].id)
+          .then(id => {
+            var debugUrl = `http://${hostname}:${debugPort}/devtools/inspector.html?ws=${hostname}:${debugPort}/devtools/page/${id}`
+            alert('远程调试地址：\n' + debugUrl)
+          })
+        ]).then(() => {
+          return Page.navigate({url: 'http://haozi.me'})
+        }).catch((err) => {
+          console.error(`ERROR: ${err.message}`)
+          client.close()
+        })
+      }).on('error', (err) => {
+        console.error('Cannot connect to remote endpoint:', err)
+      })
+    </script>
+  </body>
+
+</html>
